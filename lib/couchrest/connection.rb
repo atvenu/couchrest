@@ -22,6 +22,9 @@ module CouchRest
   #  * `:ssl_client_cert`, `:ssl_client_key` parameters controlling ssl client certificate authentication
   #  * `:ssl_ca_file` load additional CA certificates from a file (or directory)
   #
+  # The CouchDB login is passed separately, as a CouchRest::Credentials. A URI that
+  # contains a login raises ArgumentError, so the login can't leak through URLs.
+  #
   # The following request options are supported:
   #
   #  * `:content_type`, type of content to be sent, especially useful when sending files as this will set the file type. The default is :json.
@@ -54,11 +57,15 @@ module CouchRest
 
     SUCCESS_RESPONSE_CODES = [200, 201, 202, 204]
 
-    attr_reader :uri, :last_response, :options
+    LOGIN_IN_URL_ERROR = "Pass the CouchDB login as username: and password:, not in the URL".freeze
 
-    def initialize(uri, options = {})
+    attr_reader :uri, :last_response, :options, :credentials
+
+    def initialize(uri, options = {}, credentials = Credentials.new(nil, nil))
       raise "CouchRest::Connection.new requires URI::HTTP(S) parameter" unless uri.is_a?(URI::HTTP)
+      raise ArgumentError, LOGIN_IN_URL_ERROR if uri.userinfo
       @uri = clean_uri(uri)
+      @credentials = credentials
       @options = options.dup
       @options[:persistent] = true if @options[:persistent].nil?
     end
@@ -103,6 +110,11 @@ module CouchRest
       @http || prepare_http_connection
     end
 
+    # Leaves out the HTTP client, which holds the login.
+    def inspect
+      "#<#{self.class} #{uri.scheme}://#{uri.host}:#{uri.port}>"
+    end
+
     protected
 
     # Duplicate and remove excess baggage from the provided URI
@@ -129,9 +141,9 @@ module CouchRest
     # We try to maintain RestClient compatability in option names as this is what we used before.
     def set_http_connection_options(conn, opts)
       # Authentication
-      unless uri.user.to_s.empty?
+      unless credentials.empty?
         conn.force_basic_auth = true
-        conn.set_auth(uri.to_s, uri.user, uri.password)
+        conn.set_auth(uri.to_s, credentials.username, credentials.password)
       end
 
       # SSL Certificate option mapping

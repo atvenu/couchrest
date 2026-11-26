@@ -60,9 +60,22 @@ describe CouchRest::Connection do
       CouchRest::Connection.proxy = nil
     end
 
-    it "should pass through authentication details" do
-      conn = CouchRest::Connection.new(URI "http://user:pass@mock")
+    it "should raise without echoing the URI when the URI holds a login" do
+      expect { CouchRest::Connection.new(URI "http://user:secret@mock") }.to raise_error(ArgumentError) { |error|
+        expect(error.message).not_to include("secret")
+      }
+    end
+
+    it "should take authentication details from credentials" do
+      conn = CouchRest::Connection.new(URI("http://mock"), {}, CouchRest::Credentials.new("user", "pass"))
       expect(conn.http.www_auth.basic_auth.set?).to be_true
+      expect(conn.options).not_to include(:password)
+    end
+
+    it "should keep the login out of inspect" do
+      conn = CouchRest::Connection.new(URI("http://mock"), {}, CouchRest::Credentials.new("user", "secret"))
+      conn.http # instantiate
+      expect(conn.inspect).to eql("#<CouchRest::Connection http://mock:80>")
     end
 
     describe "with SSL options" do
@@ -155,7 +168,7 @@ describe CouchRest::Connection do
       URI(DB.to_s + "/test-doc")
     end
     let :conn do
-      CouchRest::Connection.new(uri)
+      CouchRest::Connection.new(uri, {}, COUCH_CREDENTIALS)
     end
     let :mock_uri do
       URI "http://mock/db/test-doc"
@@ -197,7 +210,7 @@ describe CouchRest::Connection do
 
       it "should raise exception if document missing" do
         uri = URI(DB.to_s + "/missingdoc")
-        conn = CouchRest::Connection.new(uri)
+        conn = CouchRest::Connection.new(uri, {}, COUCH_CREDENTIALS)
         res = nil
         expect { res = conn.get(uri.path) }.to raise_error do |e|
           expect(e).to be_a(CouchRest::RequestFailed)
@@ -268,11 +281,21 @@ describe CouchRest::Connection do
         mock_conn.get("db/test", :quirks_mode => true)
       end
 
-      it "should forward user and password details" do
-        stub_request(:get, "http://user:pass@mock/db/test")
+      it "should send credentials as basic auth" do
+        stub_request(:get, "http://mock/db/test")
+          .with(:basic_auth => ["user", "pass"])
           .to_return(:body => doc.to_json)
-        conn = CouchRest::Connection.new(URI "http://user:pass@mock")
+        conn = CouchRest::Connection.new(URI("http://mock"), {}, CouchRest::Credentials.new("user", "pass"))
         expect(conn.http.www_auth.basic_auth.force_auth).to be_true
+        conn.get("db/test")
+      end
+
+      it "should send credentials on non-persistent connections" do
+        stub_request(:get, "http://mock/db/test")
+          .with(:basic_auth => ["user", "pass"])
+          .to_return(:body => doc.to_json)
+        conn = CouchRest::Connection.new(URI("http://mock"), { :persistent => false }, CouchRest::Credentials.new("user", "pass"))
+        conn.get("db/test")
         conn.get("db/test")
       end
 
@@ -285,7 +308,7 @@ describe CouchRest::Connection do
 
         before(:all) do
           CouchRest.decode_json_objects = true
-          CouchRest.put "#{COUCHHOST}/#{TESTDB}/test", JSON.create_id => TestObject.to_s
+          CouchRest.put "#{COUCHHOST}/#{TESTDB}/test", { JSON.create_id => TestObject.to_s }, COUCH_LOGIN
         end
 
         after(:all) do
@@ -293,7 +316,7 @@ describe CouchRest::Connection do
         end
 
         it 'should return the response as a Ruby object' do
-          conn = CouchRest::Connection.new(URI(COUCHHOST))
+          conn = CouchRest::Connection.new(URI(COUCHHOST), {}, COUCH_CREDENTIALS)
           expect(conn.get("#{TESTDB}/test").class).to eql(TestObject)
         end
       end
@@ -307,11 +330,11 @@ describe CouchRest::Connection do
 
         before(:all) do
           CouchRest.decode_json_objects = false
-          CouchRest.put "#{COUCHHOST}/#{TESTDB}/test2", JSON.create_id => TestObject.to_s
+          CouchRest.put "#{COUCHHOST}/#{TESTDB}/test2", { JSON.create_id => TestObject.to_s }, COUCH_LOGIN
         end
 
         it 'should not return the response as a Ruby object' do
-          conn = CouchRest::Connection.new(URI(COUCHHOST))
+          conn = CouchRest::Connection.new(URI(COUCHHOST), {}, COUCH_CREDENTIALS)
           expect(conn.get("#{TESTDB}/test2").class).to eql(Hash)
         end
       end

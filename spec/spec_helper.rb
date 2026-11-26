@@ -11,9 +11,11 @@ unless defined?(FIXTURE_PATH)
   SCRATCH_PATH = File.join(File.dirname(__FILE__), '/tmp')
 
   COUCHHOST = ENV['COUCHHOST'] || "http://127.0.0.1:5984"
+  COUCH_LOGIN = { :username => ENV['COUCHUSER'], :password => ENV['COUCHPASSWORD'] }
+  COUCH_CREDENTIALS = CouchRest::Credentials.new(COUCH_LOGIN[:username], COUCH_LOGIN[:password])
   TESTDB    = 'couchrest-test'
   REPLICATIONDB = 'couchrest-test-replication'
-  TEST_SERVER    = CouchRest.new COUCHHOST
+  TEST_SERVER    = CouchRest.new(:url => COUCHHOST, **COUCH_LOGIN)
   DB = TEST_SERVER.database(TESTDB)
 end
 

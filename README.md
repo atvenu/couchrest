@@ -49,6 +49,31 @@ doc.inspect # #<CouchRest::Document _id: "doc", _rev: "1-defa304b36f9b3ef3ed606c
 db.delete_doc(doc)
 ```
 
+### Connecting with a login
+
+Pass the server address, username, and password as separate keywords. Any other keyword is a connection option, such as a timeout:
+
+```ruby
+server = CouchRest.new(
+  url: "https://couch.example.com:6984",
+  username: "admin",
+  password: ENV["COUCH_PASSWORD"],
+  timeout: 5
+)
+db = server.database("orders")
+```
+
+The login is sent as HTTP basic auth on every request. It is never part of a URL, and `inspect`, `to_s` and JSON show `[FILTERED]` in its place, so it can't end up in logs or error reports.
+
+A URL that contains a login, such as `http://admin:secret@host:5984`, raises `ArgumentError`. The error message doesn't repeat the URL.
+
+The URL helpers take the same keywords:
+
+```ruby
+CouchRest.database("https://couch.example.com:6984/orders", username: "admin", password: ENV["COUCH_PASSWORD"])
+CouchRest.get("https://couch.example.com:6984/orders/doc-1", username: "admin", password: ENV["COUCH_PASSWORD"])
+```
+
 ## Running the Specs
 
 The most complete documentation is the spec/ directory. To validate your

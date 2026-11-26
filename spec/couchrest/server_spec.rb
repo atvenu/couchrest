@@ -3,7 +3,7 @@ require File.expand_path("../../spec_helper", __FILE__)
 describe CouchRest::Server do
   
   let :server do
-    CouchRest::Server.new(COUCHHOST)
+    CouchRest::Server.new(:url => COUCHHOST, **COUCH_LOGIN)
   end
 
   let :mock_url do
@@ -11,7 +11,7 @@ describe CouchRest::Server do
   end
 
   let :mock_server do
-    CouchRest::Server.new(mock_url)
+    CouchRest::Server.new(:url => mock_url)
   end
 
   describe "#initialize" do
@@ -22,7 +22,7 @@ describe CouchRest::Server do
     end
 
     it "should clean URI" do
-      server = CouchRest::Server.new(COUCHHOST + "/some/path?q=1#fragment")
+      server = CouchRest::Server.new(:url => COUCHHOST + "/some/path?q=1#fragment")
       expect(server.uri.to_s).to eql(COUCHHOST)
     end
 
@@ -31,17 +31,48 @@ describe CouchRest::Server do
     end
 
     it "should set uuid batch count" do
-      server = CouchRest::Server.new(mock_url, 1234)
-      expect(server.uuid_batch_count).to eql(1234)
-      server = CouchRest::Server.new(mock_url, :uuid_batch_count => 1235)
+      server = CouchRest::Server.new(:url => mock_url, :uuid_batch_count => 1235)
       expect(server.uuid_batch_count).to eql(1235)
     end
 
     it "should set connection options" do
-      server = CouchRest::Server.new(mock_url)
+      server = CouchRest::Server.new(:url => mock_url)
       expect(server.connection_options).to be_empty
-      server = CouchRest::Server.new(mock_url, :persistent => false)
+      server = CouchRest::Server.new(:url => mock_url, :persistent => false)
       expect(server.connection_options[:persistent]).to be_false
+    end
+  end
+
+  describe "login" do
+    let(:server) { CouchRest::Server.new(:url => mock_url, :username => "user", :password => "secret") }
+
+    it "should keep the login out of the connection options" do
+      expect(server.connection_options).to be_empty
+      expect(server.credentials.username).to eql("user")
+    end
+
+    it "should send the login as basic auth" do
+      stub_request(:get, "http://mock/db").with(:basic_auth => ["user", "secret"]).to_return(:body => "{}")
+      server.database("db").info
+    end
+
+    it "should keep the login out of inspect and JSON" do
+      server.connection # instantiate
+      database = server.database("db")
+      text = [server.inspect, server.to_s, database.inspect, database.to_s, MultiJson.encode(server.credentials)].join("\n")
+      expect(text).not_to include("secret")
+      expect(text).not_to include(Base64.strict_encode64("user:secret"))
+    end
+
+    it "should raise without echoing the URL when the URL holds a login" do
+      expect { CouchRest::Server.new(:url => "http://user:secret@mock") }.to raise_error(ArgumentError) { |error|
+        expect(error.message).not_to include("secret")
+      }
+    end
+
+    it "should not share a connection between different logins" do
+      other = CouchRest::Server.new(:url => mock_url, :username => "other", :password => "secret")
+      expect(server.connection).not_to equal(other.connection)
     end
   end
 
@@ -54,12 +85,12 @@ describe CouchRest::Server do
     it "should cache connection in current thread" do
       server.connection # instantiate
       conns = Thread.current['couchrest.connections']
-      expect(server.connection).to eql(conns[COUCHHOST + "##{{}.hash}"])
+      expect(server.connection).to eql(conns["#{COUCHHOST}##{{}.hash}##{server.credentials.hash}"])
     end
 
     it "should cache connection in current thread with options" do
       Thread.current['couchrest.connections'] = {}
-      srv = CouchRest::Server.new(mock_url, :persistent => false)
+      srv = CouchRest::Server.new(:url => mock_url, :persistent => false)
       srv.connection # instantiate
       conns = Thread.current['couchrest.connections']
       expect(srv.connection.object_id).to eql(conns[conns.keys.last].object_id)
@@ -68,9 +99,9 @@ describe CouchRest::Server do
 
     it "should not cache connection in current thread with different options" do
       conns = Thread.current['couchrest.connections'] = {}
-      srv = CouchRest::Server.new(mock_url, :persistent => true)
+      srv = CouchRest::Server.new(:url => mock_url, :persistent => true)
       srv.connection # init
-      srv2 = CouchRest::Server.new(mock_url, :persistent => false)
+      srv2 = CouchRest::Server.new(:url => mock_url, :persistent => false)
       srv2.connection # init
       expect(conns.length).to eql(2)
       expect(srv.connection.object_id).to_not eql(srv2.connection.object_id)
@@ -78,7 +109,7 @@ describe CouchRest::Server do
 
     it "should pass configuration options to the connection" do
       expect(mock_server.connection.options[:persistent]).to be_true
-      srv = CouchRest::Server.new(mock_url, :persistent => false)
+      srv = CouchRest::Server.new(:url => mock_url, :persistent => false)
       expect(srv.connection.options[:persistent]).to be_false
     end
 

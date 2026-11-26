@@ -15,24 +15,27 @@ module CouchRest
     # The connection options we should use to connect with
     attr_reader :connection_options
 
-    def initialize(server = 'http://127.0.0.1:5984', opts = {})
-      @uri = prepare_uri(server).freeze
-      if opts.is_a?(Integer)
-        # Backwards compatibility
-        @uuid_batch_count = opts
-        @connection_options = {}
-      else
-        @uuid_batch_count = opts.delete(:uuid_batch_count)
-        @connection_options = opts
-      end
-      @uuid_batch_count ||= 1000
+    # The CouchDB login, filtered from inspect and JSON.
+    attr_reader :credentials
+
+    DEFAULT_URL = 'http://127.0.0.1:5984'.freeze
+
+    # * `url:` the server address, without a login (one in the URL raises ArgumentError)
+    # * `username:`, `password:` the CouchDB login, sent as basic auth
+    # * `uuid_batch_count:` see #uuid_batch_count
+    # * any other keyword is a connection option, see CouchRest::Connection
+    def initialize(url: DEFAULT_URL, username: nil, password: nil, uuid_batch_count: 1000, **connection_options)
+      @uri = prepare_uri(url).freeze
+      @credentials = Credentials.new(username, password)
+      @uuid_batch_count = uuid_batch_count
+      @connection_options = connection_options
     end
 
     # Lazy load the connection for the current thread
     def connection
       conns = (Thread.current['couchrest.connections'] ||= {})
-      key = "#{uri.to_s}##{connection_options.hash}"
-      conns[key] ||= Connection.new(uri, connection_options)
+      key = "#{uri.to_s}##{connection_options.hash}##{credentials.hash}"
+      conns[key] ||= Connection.new(uri, connection_options, credentials)
     end
 
     # Lists all databases on the server
@@ -81,6 +84,7 @@ module CouchRest
 
     def prepare_uri(url)
       uri = URI(url)
+      raise ArgumentError, Connection::LOGIN_IN_URL_ERROR if uri.userinfo
       uri.path     = ""
       uri.query    = nil
       uri.fragment = nil
