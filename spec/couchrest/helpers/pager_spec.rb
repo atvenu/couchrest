@@ -2,7 +2,7 @@ require File.expand_path("../../../spec_helper", __FILE__)
 
 describe CouchRest::Pager do
   before(:all) do
-    @cr = CouchRest.new(COUCHHOST)
+    @cr = CouchRest.new(:url => COUCHHOST, **COUCH_LOGIN)
     @db = @cr.database(TESTDB)
     @db.delete! rescue nil
     @db = @cr.create_db(TESTDB) rescue nil

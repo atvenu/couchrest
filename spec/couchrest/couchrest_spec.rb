@@ -3,7 +3,7 @@ require File.expand_path("../../spec_helper", __FILE__)
 describe CouchRest do
 
   before(:each) do
-    @cr = CouchRest.new(COUCHHOST)
+    @cr = CouchRest.new(:url => COUCHHOST, **COUCH_LOGIN)
     begin
       @db = @cr.database(TESTDB)
       @db.delete! rescue nil      
@@ -135,7 +135,7 @@ describe CouchRest do
 
   describe "ensuring the db exists" do
     it "should be super easy" do
-      db = CouchRest.database! "#{COUCHHOST}/couchrest-test-2"
+      db = CouchRest.database!("#{COUCHHOST}/couchrest-test-2", **COUCH_LOGIN)
       expect(db.name).to eq 'couchrest-test-2'
       expect(db.info["db_name"]).to eq 'couchrest-test-2'
     end

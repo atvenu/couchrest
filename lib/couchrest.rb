@@ -22,6 +22,7 @@ $:.unshift File.dirname(__FILE__) unless
 
 require 'couchrest/version'
 require 'couchrest/exceptions'
+require 'couchrest/credentials'
 require 'couchrest/connection'
 require 'couchrest/rest_api'
 require 'couchrest/support/inheritable_attributes'
@@ -51,9 +52,9 @@ module CouchRest
   # some helpers for tasks like instantiating a new Database or Server instance.
   class << self
 
-    # Instantiate a new Server object
-    def new(*opts)
-      Server.new(*opts)
+    # Instantiate a new Server object. See CouchRest::Server#initialize.
+    def new(**opts)
+      Server.new(**opts)
     end
 
     def parse url
@@ -98,15 +99,15 @@ module CouchRest
     # ensure that a database exists
     # creates it if it isn't already there
     # returns it after it's been created
-    def database! url
+    def database!(url, **opts)
       parsed = parse url
-      cr = CouchRest.new(parsed[:host])
+      cr = CouchRest.new(url: parsed[:host], **opts)
       cr.database!(parsed[:database])
     end
 
-    def database url
+    def database(url, **opts)
       parsed = parse url
-      cr = CouchRest.new(parsed[:host])
+      cr = CouchRest.new(url: parsed[:host], **opts)
       cr.database(parsed[:database])
     end
 

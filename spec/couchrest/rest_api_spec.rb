@@ -27,7 +27,7 @@ describe CouchRest::RestAPI do
 
       it "should start and use connection" do
         expect(CouchRest::Connection).to receive(:new)
-          .with(uri, {})
+          .with(uri, {}, an_instance_of(CouchRest::Credentials))
           .and_return(mock_conn)
   
         stub_request(:get, uri.to_s)
@@ -39,7 +39,7 @@ describe CouchRest::RestAPI do
 
       it "should start connection with options" do
         expect(CouchRest::Connection).to receive(:new)
-          .with(uri, hash_including(:test => 'foo'))
+          .with(uri, hash_including(:test => 'foo'), an_instance_of(CouchRest::Credentials))
           .and_return(mock_conn)
   
         stub_request(:get, uri.to_s)
@@ -53,7 +53,7 @@ describe CouchRest::RestAPI do
 
         uri = URI("http://mock/db/doc?q=a")
         expect(CouchRest::Connection).to receive(:new)
-          .with(uri, {})
+          .with(uri, {}, an_instance_of(CouchRest::Credentials))
           .and_return(mock_conn)
         stub_request(:get, uri.to_s)
           .to_return(:body => {'_id' => 'test', 'name' => 'none'}.to_json)
@@ -66,11 +66,18 @@ describe CouchRest::RestAPI do
     describe :delete do
     
       it "should delete a document" do
-        res = CouchRest.post(DB.uri.to_s, {'name' => "TestDoc"})
-        res = CouchRest.delete("#{DB.uri.to_s}/#{res['id']}?rev=#{res['rev']}")
+        res = CouchRest.post(DB.uri.to_s, {'name' => "TestDoc"}, COUCH_LOGIN)
+        res = CouchRest.delete("#{DB.uri.to_s}/#{res['id']}?rev=#{res['rev']}", COUCH_LOGIN)
         expect(res['ok']).to be_true
       end
 
+    end
+
+    it "should send username and password options as basic auth" do
+      stub_request(:get, "http://mock/db/doc")
+        .with(:basic_auth => ["user", "secret"])
+        .to_return(:body => "{}")
+      CouchRest.get("http://mock/db/doc", :username => "user", :password => "secret")
     end
 
   end

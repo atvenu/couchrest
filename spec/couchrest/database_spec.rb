@@ -2,7 +2,7 @@ require File.expand_path("../../spec_helper", __FILE__)
 
 describe CouchRest::Database do
   before(:each) do
-    @cr = CouchRest.new(COUCHHOST)
+    @cr = CouchRest.new(:url => COUCHHOST, **COUCH_LOGIN)
     @db = @cr.database(TESTDB)
     @db.delete! rescue CouchRest::NotFound
     @db = @cr.create_db(TESTDB) # rescue nil
@@ -176,7 +176,7 @@ describe CouchRest::Database do
     end
     it "should accept a short design doc name" do
       res = { 'rows' => [] }
-      db = CouchRest.new("http://mock").database('db')
+      db = CouchRest.new(:url => "http://mock").database('db')
       stub_request(:get, "http://mock/db/_design/a/_view/test")
         .to_return(:body => res.to_json)
       expect(db.view('a/test')).to eql(res)

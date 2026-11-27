@@ -56,7 +56,9 @@ module CouchRest
 
     def connection(url, options)
       uri = URI url
-      conn = CouchRest::Connection.new(uri, options)
+      options = options.dup
+      credentials = Credentials.new(options.delete(:username), options.delete(:password))
+      conn = CouchRest::Connection.new(uri, options, credentials)
       res = yield uri, conn
       res
     end
